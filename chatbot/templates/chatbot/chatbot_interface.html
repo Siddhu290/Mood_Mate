@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chatbot</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'chatbot/style.css' %}">
+    <!-- Include Face-API.js library -->
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>Chatbot</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="{% url 'dashboard' %}" class="nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+                    <i class="icon">📊</i> Dashboard
+                </a>
+                <a href="{% url 'chatbot' %}" class="nav-item {% if request.resolver_match.url_name == 'chatbot' %}active{% endif %}">
+                    <i class="icon">💬</i> Chatbot
+                </a>
+                <a href="{% url 'logout' %}" class="nav-item">
+                    <i class="icon">🚪</i> Logout
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Navigation Bar -->
+            <header class="top-nav">
+                <h1>Chat with Your Friend 👋</h1>
+                <div class="profile">
+                    <img src="{% static 'chatbot/profile.jpg' %}" alt="Profile Picture">
+                    <span>Let's talk! 😊</span>
+                </div>
+            </header>
+
+            <div class="chat-container">
+                <!-- Left side - Webcam feed and expression detection -->
+                <div class="webcam-container">
+                    <h3>Emotion Detection</h3>
+                    <div class="video-wrapper">
+                        <video id="webcam" autoplay muted playsinline></video>
+                        <canvas id="overlay" class="overlay"></canvas>
+                        <div id="camera-status" class="camera-status">
+                            <p>Camera initializing...</p>
+                            <button id="requestPermission" class="btn" style="display: none;">Enable Camera</button>
+                        </div>
+                    </div>
+                    <div class="detected-emotion">
+                        <p>Detected emotion: <span id="emotion">Waiting...</span></p>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="webcamToggle" checked>
+                            <span class="slider round"></span>
+                            <span class="toggle-label">Camera</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Right side - Chat interface -->
+                <div class="chat-section">
+                    <div class="chat-window" id="chatWindow">
+                        {% if chat_history %}
+                            {% for chat in chat_history %}
+                                <div class="chat-bubble {% if forloop.counter|divisibleby:2 %}user{% else %}bot{% endif %}">
+                                    {{ chat.message }}
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="chat-bubble bot">
+                                Hi there! How are you feeling today? I'm here to chat with you.
+                            </div>
+                        {% endif %}
+                    </div>
+                    <form id="chatForm" class="chat-form">
+                        <textarea id="chatInput" name="message" placeholder="Type a message..." required></textarea>
+                        <button type="submit">Send</button>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Variables to store face detection models and webcam
+        let webcam, canvas, emotionDetection = false;
+        const detectedExpressions = [];
+        const cameraStatus = document.getElementById('camera-status');
+        const requestPermissionBtn = document.getElementById('requestPermission');
+        
+        // Function to load face-api.js models from a reliable CDN
+        async function loadModels() {
+            try {
+                // Show loading indicator
+                cameraStatus.innerHTML = '<p>Loading models...</p>';
+                
+                // Use models from jsdelivr CDN which is more reliable
+                const modelUrl = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
+                
+                await Promise.all([
+                    faceapi.nets.tinyFaceDetector.loadFromUri(modelUrl),
+                    faceapi.nets.faceExpressionNet.loadFromUri(modelUrl)
+                ]);
+                
+                console.log('Face detection models loaded successfully');
+                return true;
+            } catch (error) {
+                console.error('Error loading face detection models:', error);
+                cameraStatus.innerHTML = '<p>Failed to load detection models</p><button id="skipModels" class="btn">Continue without facial detection</button>';
+                
+                // Add event listener to skip models button
+                document.getElementById('skipModels').addEventListener('click', function() {
+                    cameraStatus.style.display = 'none';
+                    document.getElementById('emotion').textContent = 'Facial detection disabled';
+                });
+                
+                return false;
+            }
+        }
+
+        // Initialize webcam with better error handling
+        async function initWebcam() {
+            webcam = document.getElementById('webcam');
+            canvas = document.getElementById('overlay');
+            
+            // Make sure canvas is set up even if webcam fails
+            canvas.width = 320;
+            canvas.height = 240;
+            
+            try {
+                cameraStatus.innerHTML = '<p>Requesting camera access...</p>';
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 320 },
+                        height: { ideal: 240 },
+                        facingMode: "user"
+                    }
+                });
+                
+                webcam.srcObject = stream;
+                cameraStatus.style.display = 'none';
+                
+                // Start emotion detection after webcam is initialized
+                webcam.onloadedmetadata = () => {
+                    emotionDetection = true;
+                    detectEmotions();
+                };
+                
+                return true;
+            } catch (error) {
+                console.error('Error accessing webcam:', error);
+                
+                // Show appropriate message based on error
+                if (error.name === 'NotAllowedError') {
+                    cameraStatus.innerHTML = '<p>Camera access denied</p><button id="continueWithoutCamera" class="btn">Continue without camera</button>';
+                    document.getElementById('continueWithoutCamera').addEventListener('click', function() {
+                        cameraStatus.style.display = 'none';
+                        document.getElementById('emotion').textContent = 'Camera access denied';
+                    });
+                } else if (error.name === 'NotFoundError') {
+                    cameraStatus.innerHTML = '<p>No camera found on your device</p>';
+                } else {
+                    cameraStatus.innerHTML = `<p>Camera error: ${error.message}</p>`;
+                }
+                
+                // Set webcam toggle to off
+                document.getElementById('webcamToggle').checked = false;
+                
+                return false;
+            }
+        }
+
+        // Initialize face detection with improved setup sequence and fallback
+        async function initFaceDetection() {
+            // First load models
+            const modelsLoaded = await loadModels();
+            if (!modelsLoaded) {
+                // If models failed to load, still try camera for video only
+                document.getElementById('emotion').textContent = 'Detection unavailable';
+                await initWebcam();
+                return false;
+            }
+            
+            // Then initialize webcam
+            const webcamInitialized = await initWebcam();
+            if (!webcamInitialized) {
+                document.getElementById('emotion').textContent = 'Camera off';
+                return false;
+            }
+            
+            return true;
+        }
+
+        // Detect emotions from webcam feed
+        async function detectEmotions() {
+            if (!emotionDetection) return;
+            
+            try {
+                if (!webcam || !webcam.srcObject) {
+                    document.getElementById('emotion').textContent = 'Camera not available';
+                    return;
+                }
+                
+                // Detect faces and expressions
+                const detections = await faceapi.detectAllFaces(
+                    webcam, 
+                    new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.3 })
+                ).withFaceExpressions();
+                
+                // Clear previous drawings
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Draw results on canvas and update detected emotion
+                if (detections && detections.length > 0) {
+                    // Draw rectangles around faces
+                    faceapi.draw.drawDetections(canvas, detections);
+                    
+                    // Get dominant expression
+                    const expressions = detections[0].expressions;
+                    let dominantExpression = Object.keys(expressions).reduce((a, b) => 
+                        expressions[a] > expressions[b] ? a : b
+                    );
+                    
+                    // Update UI
+                    document.getElementById('emotion').textContent = 
+                        `${dominantExpression} (${Math.round(expressions[dominantExpression] * 100)}%)`;
+                    
+                    // Store for sending with next message
+                    detectedExpressions.push({
+                        expression: dominantExpression,
+                        confidence: expressions[dominantExpression],
+                        timestamp: new Date()
+                    });
+                    
+                    // Keep only recent expressions (last 10 seconds)
+                    const tenSecondsAgo = new Date(Date.now() - 10000);
+                    while (detectedExpressions.length > 0 && 
+                           detectedExpressions[0].timestamp < tenSecondsAgo) {
+                        detectedExpressions.shift();
+                    }
+                } else {
+                    document.getElementById('emotion').textContent = 'No face detected';
+                }
+            } catch (error) {
+                console.error('Error in emotion detection:', error);
+                document.getElementById('emotion').textContent = 'Detection error';
+            }
+            
+            // Continue detection loop if still enabled
+            if (emotionDetection) {
+                requestAnimationFrame(detectEmotions);
+            }
+        }
+
+        // Handle permission button click
+        requestPermissionBtn.addEventListener('click', () => {
+            initWebcam();
+        });
+
+        // Toggle webcam on/off with safety checks for canvas
+        document.getElementById('webcamToggle').addEventListener('change', function() {
+            if (this.checked) {
+                // Re-initialize face detection
+                initFaceDetection();
+                requestPermissionBtn.style.display = 'none';
+            } else {
+                // Stop webcam and detection
+                if (webcam && webcam.srcObject) {
+                    webcam.srcObject.getTracks().forEach(track => track.stop());
+                    webcam.srcObject = null;
+                }
+                emotionDetection = false;
+                document.getElementById('emotion').textContent = 'Camera off';
+                cameraStatus.innerHTML = '<p>Camera disabled</p>';
+                cameraStatus.style.display = 'block';
+                
+                // Clear canvas with safety check
+                canvas = document.getElementById('overlay');
+                if (canvas) {
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    }
+                }
+            }
+        });
+
+        // Handle chat form submission
+        document.getElementById('chatForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const chatInput = document.getElementById('chatInput');
+            const chatWindow = document.getElementById('chatWindow');
+            const message = chatInput.value.trim();
+            
+            if (!message) return;
+            
+            // Create and append user message bubble
+            const userBubble = document.createElement('div');
+            userBubble.className = 'chat-bubble user';
+            userBubble.textContent = message;
+            chatWindow.appendChild(userBubble);
+            
+            // Clear input field
+            chatInput.value = '';
+            
+            // Scroll to bottom
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+            
+            // Get facial expression data if available
+            let facialData = null;
+            if (detectedExpressions.length > 0) {
+                // Calculate average expression over last few seconds
+                const expressionCounts = {};
+                detectedExpressions.forEach(item => {
+                    expressionCounts[item.expression] = (expressionCounts[item.expression] || 0) + 1;
+                });
+                
+                const dominantExpression = Object.keys(expressionCounts).reduce((a, b) => 
+                    expressionCounts[a] > expressionCounts[b] ? a : b
+                );
+                
+                facialData = {
+                    expression: dominantExpression,
+                    confidence: detectedExpressions
+                        .filter(e => e.expression === dominantExpression)
+                        .reduce((sum, e) => sum + e.confidence, 0) / 
+                        expressionCounts[dominantExpression]
+                };
+            }
+            
+            try {
+                // Send message to API endpoint with facial data
+                const response = await fetch("{% url 'chat-api' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}',
+                    },
+                    body: JSON.stringify({ 
+                        message: message,
+                        facial_data: facialData
+                    }),
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Create and append bot response bubble
+                    const botBubble = document.createElement('div');
+                    botBubble.className = 'chat-bubble bot';
+                    botBubble.textContent = data.response;
+                    chatWindow.appendChild(botBubble);
+                    
+                    // Scroll to bottom again after response
+                    chatWindow.scrollTop = chatWindow.scrollHeight;
+                } else {
+                    console.error('Error:', data.error);
+                }
+            } catch (error) {
+                console.error('Failed to send message:', error);
+            }
+        });
+
+        // Initialize on page load with graceful degradation
+        window.addEventListener('load', async function() {
+            try {
+                // Initialize only if toggle is enabled
+                if (document.getElementById('webcamToggle').checked) {
+                    const success = await initFaceDetection();
+                    if (!success) {
+                        console.log('Using text-only mode without facial detection');
+                    }
+                } else {
+                    // Disable camera interface
+                    cameraStatus.innerHTML = '<p>Camera disabled</p>';
+                    document.getElementById('emotion').textContent = 'Camera off';
+                }
+            } catch (error) {
+                console.error('Initialization error:', error);
+                document.getElementById('webcamToggle').checked = false;
+                document.getElementById('emotion').textContent = 'Setup error';
+            }
+            
+            // Scroll to bottom of chat window
+            const chatWindow = document.getElementById('chatWindow');
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        });
+    </script>
+</body>
+</html>

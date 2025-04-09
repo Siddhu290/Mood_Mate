@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'chatbot/style.css' %}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>Chatbot</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="{% url 'dashboard' %}" class="nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+                    <i class="icon">📊</i> Dashboard
+                </a>
+                <a href="{% url 'chatbot' %}" class="nav-item {% if request.resolver_match.url_name == 'chatbot' %}active{% endif %}">
+                    <i class="icon">💬</i> Chatbot
+                </a>
+                <a href="{% url 'logout' %}" class="nav-item">
+                    <i class="icon">🚪</i> Logout
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Navigation Bar -->
+            <header class="top-nav">
+                <h1>Hi {{ request.user.username }} 👋</h1>
+                <div class="profile">
+                    <img src="{% static 'chatbot/profile.jpg' %}" alt="Profile Picture">
+                    <span>Keep smiling 😊</span>
+                </div>
+            </header>
+
+            <!-- Cards Section -->
+            <section class="cards">
+                <div class="card">
+                    <h3>Current Mood</h3>
+                    <p>😊 Happy</p>
+                </div>
+                <div class="card">
+                    <h3>Messages Sent Today</h3>
+                    <p>15</p>
+                </div>
+                <div class="card">
+                    <h3>Mood Swing Alert</h3>
+                    <p>No drastic changes</p>
+                </div>
+            </section>
+
+            <!-- Charts Section -->
+            <section class="charts">
+                <div class="chart-container">
+                    <h3>Mood Over the Past 7 Days</h3>
+                    <canvas id="lineChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3>Sentiment Frequency</h3>
+                    <canvas id="barChart"></canvas>
+                </div>
+            </section>
+
+            <!-- Chat Interface -->
+            <section class="chat-interface">
+                <h3>Chat with Your Friend</h3>
+                <div class="chat-window" id="chatWindow">
+                    {% for chat in chat_history %}
+                        <div class="chat-bubble {% if chat.user == request.user %}user{% else %}bot{% endif %}">
+                            {{ chat.message }}
+                        </div>
+                    {% endfor %}
+                </div>
+                <form id="chatForm" method="post" action="{% url 'chat-api' %}">
+                    {% csrf_token %}
+                    <textarea id="chatInput" name="message" placeholder="Type a message..." required></textarea>
+                    <button type="submit">Send</button>
+                </form>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        // Initialize charts with the data already in the template
+        const moodChart = new Chart(document.getElementById('lineChart').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: [
+                    {% for mood in mood_analysis %}
+                        "{{ mood.timestamp|date:'M d, H:i' }}",
+                    {% endfor %}
+                ],
+                datasets: [{
+                    label: 'Mood Over Time',
+                    data: [
+                        {% for mood in mood_analysis %}
+                            {% if mood.mood == "Happy" %}5{% elif mood.mood == "Content" %}4{% elif mood.mood == "Neutral" %}3{% elif mood.mood == "Sad" %}2{% else %}1{% endif %},
+                        {% endfor %}
+                    ],
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    fill: true,
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: true },
+                },
+                scales: {
+                    y: { 
+                        beginAtZero: true,
+                        min: 1,
+                        max: 5,
+                        ticks: { stepSize: 1, callback: value => ['', 'Angry', 'Sad', 'Neutral', 'Content', 'Happy'][value] }
+                    }
+                }
+            }
+        });
+
+        // Count occurrences of each sentiment
+        const sentimentCounts = { Happy: 0, Content: 0, Neutral: 0, Sad: 0, Angry: 0 };
+        {% for mood in mood_analysis %}
+            sentimentCounts["{{ mood.mood }}"] += 1;
+        {% endfor %}
+
+        const barChart = new Chart(document.getElementById('barChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: ['Happy', 'Content', 'Neutral', 'Sad', 'Angry'],
+                datasets: [{
+                    label: 'Sentiment Frequency',
+                    data: [
+                        sentimentCounts.Happy,
+                        sentimentCounts.Content,
+                        sentimentCounts.Neutral,
+                        sentimentCounts.Sad,
+                        sentimentCounts.Angry
+                    ],
+                    backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF'],
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false },
+                },
+                scales: {
+                    x: { title: { display: true, text: 'Sentiments' } },
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+
+        // Function to update charts with new data from the server
+        async function updateCharts() {
+            try {
+                const response = await fetch("{% url 'dashboard' %}?format=json", {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    // Update mood chart
+                    const moodLabels = data.mood_analysis.map(m => new Date(m.timestamp).toLocaleString());
+                    const moodValues = data.mood_analysis.map(m => {
+                        if (m.mood === "Happy") return 5;
+                        if (m.mood === "Content") return 4;
+                        if (m.mood === "Neutral") return 3;
+                        if (m.mood === "Sad") return 2;
+                        if (m.mood === "Angry") return 1;
+                        return 0;
+                    });
+                    moodChart.data.labels = moodLabels;
+                    moodChart.data.datasets[0].data = moodValues;
+                    moodChart.update();
+                    
+                    // Update bar chart
+                    const newSentimentCounts = { Happy: 0, Content: 0, Neutral: 0, Sad: 0, Angry: 0 };
+                    data.mood_analysis.forEach(m => newSentimentCounts[m.mood]++);
+                    barChart.data.datasets[0].data = [
+                        newSentimentCounts.Happy,
+                        newSentimentCounts.Content,
+                        newSentimentCounts.Neutral,
+                        newSentimentCounts.Sad,
+                        newSentimentCounts.Angry
+                    ];
+                    barChart.update();
+                }
+            } catch (error) {
+                console.error('Failed to fetch chart data:', error);
+            }
+        }
+
+        // Handle chat form submission
+        document.getElementById('chatForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const chatInput = document.getElementById('chatInput');
+            const chatWindow = document.getElementById('chatWindow');
+            const message = chatInput.value.trim();
+            
+            if (!message) return;
+            
+            try {
+                const response = await fetch("{% url 'chat-api' %}", {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: message }),
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    // Append the user's message
+                    const userBubble = document.createElement('div');
+                    userBubble.className = 'chat-bubble user';
+                    userBubble.textContent = message;
+                    chatWindow.appendChild(userBubble);
+                    
+                    // Append the bot's response
+                    const botBubble = document.createElement('div');
+                    botBubble.className = 'chat-bubble bot';
+                    botBubble.textContent = data.response;
+                    chatWindow.appendChild(botBubble);
+                    
+                    // Clear input and scroll to bottom
+                    chatInput.value = '';
+                    chatWindow.scrollTop = chatWindow.scrollHeight;
+                    
+                    // Update charts with new data
+                    updateCharts();
+                } else {
+                    console.error('Error sending message:', await response.text());
+                }
+            } catch (error) {
+                console.error('Failed to send message:', error);
+            }
+        });
+
+        // Auto-update charts every 30 seconds
+        setInterval(updateCharts, 30000);
+    </script>
+</body>
+</html>
