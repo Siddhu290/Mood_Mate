@@ -1,6 +1,6 @@
 # MoodMate: AI-Powered Emotional Intelligence Platform
 
-![MoodMate Logo](chatbot/static/chatbot/logo.png)
+![MoodMate Logo](chatbot/static/chatbot/profile.jpg)
 
 ## 📋 Overview
 
