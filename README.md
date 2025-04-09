@@ -37,11 +37,11 @@ MoodMate is an AI-powered emotional intelligence platform that combines conversa
   <em>Data visualization of emotional patterns over time</em>
 </p>
 
-### Facial Expression Detection
+### Sentiment Frequency
 <p align="center">
-  <img src="chatbot/static/chatbot/camera_d.png" alt="Facial Expression Detection" width="800">
+  <img src="chatbot/static/chatbot/sentiment_f.png" alt="Sentiment Frequency" width="800">
   <br>
-  <em>Real-time emotion recognition from facial expressions</em>
+  <em>Data visualization of Sentiment Frequency</em>
 </p>
 
 ### Mobile Responsiveness
