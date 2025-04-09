@@ -1,6 +1,6 @@
 # MoodMate: AI-Powered Emotional Intelligence Platform
 
-![MoodMate Logo](chatbot/static/chatbot/profile.jpg)
+<img src="chatbot/static/chatbot/profile.jpg" alt="Mood_Mate_logo" width="500">
 
 ## 📋 Overview
 
@@ -47,7 +47,7 @@ MoodMate is an AI-powered emotional intelligence platform that combines conversa
 ### Mobile Responsiveness
 <div align="center">
   <img src="chatbot/static/chatbot/mobile1.jpg" alt="Mobile View 1" width="300">
-  <img src="chatbot/static/chatbot/mobile2,jpg" alt="Mobile View 2" width="300">
+  <img src="chatbot/static/chatbot/mobile2.jpg" alt="Mobile View 2" width="300">
   <br>
   <em>Responsive design for mobile devices</em>
 </div>
