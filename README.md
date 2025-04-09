@@ -18,36 +18,36 @@ MoodMate is an AI-powered emotional intelligence platform that combines conversa
 
 ### Dashboard View
 <p align="center">
-  <img src="screenshots/dashboard.png" alt="Dashboard Screenshot" width="800">
+  <img src="chatbot/static/chatbot/Dashboard.png" alt="Dashboard Screenshot" width="800">
   <br>
   <em>Interactive dashboard with mood tracking visualizations and statistics</em>
 </p>
 
 ### Chat Interface
 <p align="center">
-  <img src="screenshots/chat_interface.png" alt="Chat Interface" width="800">
+  <img src="chatbot/static/chatbot/camera_d.png" alt="Chat Interface" width="800">
   <br>
   <em>AI chatbot with real-time facial expression analysis</em>
 </p>
 
 ### Mood Analysis Charts
 <p align="center">
-  <img src="screenshots/mood_charts.png" alt="Mood Analysis Charts" width="800">
+  <img src="chatbot/static/chatbot/mood_changes.png" alt="Mood Analysis Charts" width="800">
   <br>
   <em>Data visualization of emotional patterns over time</em>
 </p>
 
 ### Facial Expression Detection
 <p align="center">
-  <img src="screenshots/facial_detection.png" alt="Facial Expression Detection" width="800">
+  <img src="chatbot/static/chatbot/camera_d.png" alt="Facial Expression Detection" width="800">
   <br>
   <em>Real-time emotion recognition from facial expressions</em>
 </p>
 
 ### Mobile Responsiveness
 <div align="center">
-  <img src="screenshots/mobile_view1.png" alt="Mobile View 1" width="300">
-  <img src="screenshots/mobile_view2.png" alt="Mobile View 2" width="300">
+  <img src="chatbot/static/chatbot/mobile1.jpg" alt="Mobile View 1" width="300">
+  <img src="chatbot/static/chatbot/mobile2,jpg" alt="Mobile View 2" width="300">
   <br>
   <em>Responsive design for mobile devices</em>
 </div>
